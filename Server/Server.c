@@ -75,7 +75,7 @@ void DBInit(){
 
 
 // Loads board into the database
-void putBoard(int * board1,int * board2,int * board3,int * board4, char ** username){
+void putBoard(int ** board1, char ** username){
 	char query[512];
 	memset(query, '\0', sizeof(query));
 	sprintf(query, "SELECT session_id FROM sessions WHERE username_1 = '%s' AND username_2 = '%s' AND username_3 = '%s' AND username_4 = '%s';", username[0], username[1], username[2], username[3]);
@@ -116,7 +116,7 @@ void putBoard(int * board1,int * board2,int * board3,int * board4, char ** usern
 		}
 		for( j =0;j<100;j++){
 			memset(query,'\0',sizeof(query));
-			sprintf(query,"INSERT INTO %s(index,piece,move) VALUES('%d', '%d', '%d');",tableName,i,board[i],0);
+			sprintf(query,"INSERT INTO %s(index,piece,move) VALUES('%d', '%d', '%d');",tableName,j,board1[i][j],0);
 			mysql_query(cinnection,query);
 		}
 	}
@@ -380,16 +380,13 @@ int main(int argc, char* argv[]){
 		for(i = 0; i < maxClientNo; i++){
     		send(clientSocket[i], sendBuf, BufSize, 0);
     	}
-    	int board1[100] = {0};
-    	int board2[100] = {0};
-    	int board3[100] = {0};
-    	int board4[100] = {0};
+    	int board1[4][100] = {0};
     	// This board will contain the piece placement data and Hit or Miss board loaded to null on client side
-    	recv(clientSocket[0], board1, BufSize, 0);
-    	recv(clientSocket[1], board2, BufSize, 0);
-    	recv(clientSocket[2], board3, BufSize, 0);
-    	recv(clientSocket[3], board4, BufSize, 0);
-    	putBoard(board1,board2,board3,board4,username);
+    	recv(clientSocket[0], board1[0], 100, 0);
+    	recv(clientSocket[1], board1[1], 100, 0);
+    	recv(clientSocket[2], board1[2], 100, 0);
+    	recv(clientSocket[3], board1[3], 100, 0);
+    	putBoard(board1,username);
 
 	}
 
