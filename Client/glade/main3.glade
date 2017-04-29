@@ -4139,8 +4139,8 @@
                     <property name="can_focus">False</property>
                     <property name="active">0</property>
                     <items>
-                      <item translatable="yes">PLAYER 3</item>
-                      <item translatable="yes">PLAYER 4</item>
+                      <item translatable="yes">Opponent 1</item>
+                      <item translatable="yes">Opponent 2</item>
                     </items>
                   </object>
                   <packing>

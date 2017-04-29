@@ -17,7 +17,12 @@
 GdkColor color;
 char white[10] = "white";
 char red[10] = "red";
-
+int clientSocket;
+char sendBuf[100];
+const char * delimDash = "-";
+const char * delimSpace = " ";
+int myIndice;
+int hits;
 
 GtkBuilder *ip_builder;
 GtkBuilder *login_builder;
@@ -239,7 +244,30 @@ GtkWidget *scan_button3;
 GtkWidget *mine_hit_button3;
 
 
-char players[4][9];
+char players[4][20];
+char username[20];
+
+int player1_board[10][10];
+int player1_move[10][10];
+int board1[100];
+int move1[100];
+
+int player2_board[10][10];
+int player2_move[10][10];
+int board2[100];
+int move2[100];
+
+int player3_board[10][10];
+int player3_move[10][10];
+int board3[100];
+int move3[100];
+
+int player4_board[10][10];
+int player4_move[10][10];
+int board4[100];
+int move4[100];
+
+int score;
 
 
 int main(int argc, char *argv[]) {
@@ -304,10 +332,8 @@ int main(int argc, char *argv[]) {
 	player3name_label1 = GTK_WIDGET(gtk_builder_get_object(main_builder1, "player3name_label"));
 	player4name_label1 = GTK_WIDGET(gtk_builder_get_object(main_builder1, "player4name_label"));
 
+	gdk_color_parse (red, &color);
 
-// change background color
-	//gdk_color_parse (red, &color);
-	//gtk_widget_modify_bg (player4name_label1, GTK_STATE_NORMAL, &color);
 
 	char numi[2];
 	char numj[2];
@@ -419,10 +445,6 @@ int main(int argc, char *argv[]) {
 	player4name_label2 = GTK_WIDGET(gtk_builder_get_object(main_builder2, "player4name_label"));
 
 
-// change background color
-	//gdk_color_parse (red, &color);
-	//gtk_widget_modify_bg (player4name_label2, GTK_STATE_NORMAL, &color);
-
 	memset(numi,'\0',2);
 	memset(numj,'\0',2);
 
@@ -532,10 +554,6 @@ int main(int argc, char *argv[]) {
 	player3name_label3 = GTK_WIDGET(gtk_builder_get_object(main_builder3, "player3name_label"));
 	player4name_label3 = GTK_WIDGET(gtk_builder_get_object(main_builder3, "player4name_label"));
 
-
-// change background color
-	//gdk_color_parse (red, &color);
-	//gtk_widget_modify_bg (player4name_label3, GTK_STATE_NORMAL, &color);
 
 	memset(numi,'\0',2);
 	memset(numj,'\0',2);
@@ -677,26 +695,21 @@ int ip_address_button_clicked_cb() {
 
 	strcpy(ip_address, gtk_entry_get_text((GtkEntry *)ip_address_entry));
 
-	
-    int clientSocket = 0;
-
     struct sockaddr_in server_addr;
-
-	memset(buffer, '\0', sizeof(buffer));
 
 	clientSocket = socket(AF_INET, SOCK_STREAM, 0);
   
     memset(&server_addr, '0', sizeof(server_addr));
   
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(PORT);
       
-    if(inet_pton(AF_INET, ip_address, &serv_addr.sin_addr)<=0){
+    if(inet_pton(AF_INET, ip_address, &server_addr.sin_addr)<=0){
         gtk_label_set_text((GtkLabel *)ip_error,"Invalid IP Address");
         return -1;
     }
   
-    if(connect(clientSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
+    if(connect(clientSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0){
         printf("\nConnection Failed \n");
         return -1;
     }
@@ -704,40 +717,119 @@ int ip_address_button_clicked_cb() {
 	gtk_widget_hide(ip_window);
 
 	gtk_widget_show(login_window);
-
 	return 0;
 }
 
 
 
 
-
+void encrypt(char * password){
+	int i;
+	for(i = 0; i < strlen(password);i++){
+		password[i] = (char)((int)password[i]+i);
+	}
+}
 
 
 
 // login_window
 
 // called when signin_button in login_window is clicked
-void signin_button_clicked_cb_login() {
+int signin_button_clicked_cb_login() {
 
-	char username[9];
-	char password[9];
-
+	char password[20];
+	char * token;
+	int i = 0;
+	memset(players, '\0', sizeof(players));
 	memset(username, '\0', sizeof(username));
 	memset(password, '\0', sizeof(password));
 
 	strcpy(username, gtk_entry_get_text((GtkEntry *)username_entry_login));
 	strcpy(password, gtk_entry_get_text((GtkEntry *)password_entry_login));
 
-	//validate using database
+	send(clientSocket,username,strlen(username),0);
+	encrypt(password);
+	send(clientSocket,password,strlen(password),0);
+	recv(clientSocket,response,100,0);
+	if(strcmp(response,"_AuthenticationFailed")==0){
+		gtk_label_set_text((GtkLabel *)login_error,"Incorrect Username or Password combination. Retry");
+		return -1;
+	}
+	else if(strcmp(response,"_Authenticated_Select")==0){
 
-	gtk_widget_hide(login_window);
+		gtk_widget_hide(login_window);
+		gtk_widget_show(start_window);
+		return 0;
 
-	gtk_widget_show(start_window);
+	}
+	else if(strcmp(response,"_Authenticated")==0){
+		recv(clientSocket,response,100,0);
+		token = strtok(response,delimDash);
+
+		while(token!=NULL){
+			strcpy(players[i++],token);
+			strtok(NULL,delimDash);
+		}
+
+		gtk_widget_show(instructions_window);
+
+		recv(clientSocket,response,100,0);
+		token = strtok(response,delimDash);
+
+		while(token!=NULL){
+			if(strcmp(players[i],username)==0){
+				myIndice = i;
+			}
+			strcpy(players[i++],token);
+			strtok(NULL,delimDash);
+		}
+
+		recv(clientSocket,response, 100,0);
+		token = strtok(response,delimDash);
+		if(strcmp(token,"_New")==0){
+			gtk_label_set_text((GtkLabel *)player1name_label1,players[0]);
+			gtk_label_set_text((GtkLabel *)player2name_label1,players[1]);
+			gtk_label_set_text((GtkLabel *)player3name_label1,players[2]);
+			gtk_label_set_text((GtkLabel *)player4name_label1,players[3]);
+			level = 0;
+			turn = 0;
+			gtk_widget_show(main_window1);
+			return 0;
+		}
+		else{
+			level = atoi(strtok(NULL,delimDash));
+			turn = atoi(strtok(NULL,delimDash));
+
+			if(level == 0){
+				gtk_label_set_text((GtkLabel *)player1name_label1,players[0]);
+				gtk_label_set_text((GtkLabel *)player2name_label1,players[1]);
+				gtk_label_set_text((GtkLabel *)player3name_label1,players[2]);
+				gtk_label_set_text((GtkLabel *)player4name_label1,players[3]);
+				gtk_widget_show(main_window1);
+			}else if(level == 1){
+				gtk_label_set_text((GtkLabel *)player1name_label2,players[0]);
+				gtk_label_set_text((GtkLabel *)player2name_label2,players[1]);
+				gtk_label_set_text((GtkLabel *)player3name_label2,players[2]);
+				gtk_label_set_text((GtkLabel *)player4name_label2,players[3]);
+				gtk_widget_show(main_window2);
+			}else if(level == 2){
+				gtk_label_set_text((GtkLabel *)player1name_label3,players[0]);
+				gtk_label_set_text((GtkLabel *)player2name_label3,players[1]);
+				gtk_label_set_text((GtkLabel *)player3name_label3,players[2]);
+				gtk_label_set_text((GtkLabel *)player4name_label3,players[3]);
+				gtk_widget_show(main_window3);
+			}
+
+		}
+		return 0;
+	}
+
 }
 
 // called when signup_button in login_window is clicked
 void signup_button_clicked_cb_login() {
+	strcpy(username,"_SignUp");
+ 	send(clientSocket,username,BufSize,0);
 	gtk_widget_hide(login_window);
 	gtk_widget_show(register_window);
 }
@@ -751,12 +843,14 @@ void signin_button_clicked_cb_register() {
 	gtk_widget_show(login_window);
 }
 
+
+
 // called when signup_button in register_window is clicked
 int signup_button_clicked_cb_register() {
 
-	char username[9];
-	char password[9];
-	char confirm_password[9];
+	char password[20];
+	char confirm_password[20];
+	char response[100];
 
 	memset(username, '\0', sizeof(username));
 	memset(password, '\0', sizeof(password));
@@ -769,10 +863,24 @@ int signup_button_clicked_cb_register() {
 	if(strcmp(password, confirm_password) != 0){
 		gtk_label_set_text((GtkLabel *)register_error,"Password and Confirm Password Don't Match");
 		return -1;
-	}//else store in database, if username doesn't already exist
+	}
 
-	gtk_widget_hide(register_window);
-	gtk_widget_show(login_window);
+	send(clientSocket,username,strlen(username),0);
+	encrypt(password);
+	send(clientSocket,password,strlen(password),0);
+	recv(clientSocket,response,100,0);
+	if(strcmp(response,"_UsernameInUse")==0){
+		gtk_label_set_text((GtkLabel *)register_error,"Username is in use. Retry");
+		return -1;
+	}
+	else {
+
+		gtk_widget_hide(register_window);
+		gtk_widget_show(login_window);
+
+	}
+
+	//else store in database, if username doesn't already exist
 
 	return 0;
 }
@@ -789,17 +897,56 @@ int signup_button_clicked_cb_register() {
 
 // called when new_button in start_window is clicked
 void new_button_clicked_cb() {
+	char* token;
+	int i = 0;
 	gtk_widget_hide(start_window);
+	gtk_widget_show(instructions_window);
+
+	recv(clientSocket,response,100,0);
+	token = strtok(response,delimDash);
+
+	while(token!=NULL){
+		strcpy(players[i++],token);
+		strtok(NULL,delimDash);
+	}
+
+	gtk_label_set_text((GtkLabel *)player1name_label1,players[0]);
+	gtk_label_set_text((GtkLabel *)player2name_label1,players[1]);
+	gtk_label_set_text((GtkLabel *)player3name_label1,players[2]);
+	gtk_label_set_text((GtkLabel *)player4name_label1,players[3]);
+
 	gtk_widget_show(main_window1);
-	//gtk_widget_show(instructions_window);
-	//call function to wait for server response
 }
 
 // called when continue_button in start_window is clicked
 void continue_button_clicked_cb() {
-	gtk_widget_hide(start_window);
-	//gtk_widget_show(instructions_window);
-	//call function to wait for server response
+	char response[100];
+	recv(clientSocket,response,100,0);
+	char * token;
+	token = strtok(response,delimDash);
+	level = atoi(strtok(NULL,delimDash));
+	turn = atoi(strtok(NULL,delimDash));
+
+	if(level == 0){
+		gtk_label_set_text((GtkLabel *)player1name_label1,players[0]);
+		gtk_label_set_text((GtkLabel *)player2name_label1,players[1]);
+		gtk_label_set_text((GtkLabel *)player3name_label1,players[2]);
+		gtk_label_set_text((GtkLabel *)player4name_label1,players[3]);
+		gtk_widget_show(main_window1);
+	}else if(level == 1){
+		gtk_label_set_text((GtkLabel *)player1name_label2,players[0]);
+		gtk_label_set_text((GtkLabel *)player2name_label2,players[1]);
+		gtk_label_set_text((GtkLabel *)player3name_label2,players[2]);
+		gtk_label_set_text((GtkLabel *)player4name_label2,players[3]);
+		gtk_widget_show(main_window2);
+	}else if(level == 2){
+		gtk_label_set_text((GtkLabel *)player1name_label3,players[0]);
+		gtk_label_set_text((GtkLabel *)player2name_label3,players[1]);
+		gtk_label_set_text((GtkLabel *)player3name_label3,players[2]);
+		gtk_label_set_text((GtkLabel *)player4name_label3,players[3]);
+		gtk_widget_show(main_window3);
+	}
+
 }
 
 // called when signout_button in start_window is clicked
@@ -823,8 +970,7 @@ int submit_button_clicked_cb1() {
 	int cruiser_sr, cruiser_sc, cruiser_er, cruiser_ec;
 	int submarine_sr, submarine_sc, submarine_er, submarine_ec;
 
-	int player1_board[9][9];
-	int i, j;
+	int i, j, k;
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
@@ -1017,7 +1163,7 @@ int submit_button_clicked_cb1() {
 		i = submarine_sr;
 		j = submarine_sc;
 
-		while(i <= cruiser_er){
+		while(i <= submarine_er){
 			if(player1_board[i][j] == 0){
 				player1_board[i][j] = 5;
 				i++;
@@ -1032,7 +1178,7 @@ int submit_button_clicked_cb1() {
 		return -1;
 	}
 
-	int board1[100];
+
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
@@ -1041,9 +1187,146 @@ int submit_button_clicked_cb1() {
 	}
 
 	//send the 1d array to the server
+	send(clientSocket,board1,100,0);
 
 	gtk_widget_set_sensitive (submit_button1, FALSE);
 
+	////
+
+	//recieve the other three boards from the server (variables - board2, board3, board4)
+
+	/*for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player1_board[i][j] = board1[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player1_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell1_label1[i][j],"  S  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player2_board[i][j] = board2[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player2_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell2_label1[i][j],"  S  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player3_board[i][j] = board3[10*i + j]; 
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player3_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell3_label1[i][j],"  S  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player4_board[i][j] =board4[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player4_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell4_label1[i][j],"  S  ");
+					break;
+			}
+		}
+	}
+*/
 	return 0;
 
 }
@@ -1052,12 +1335,58 @@ int submit_button_clicked_cb1() {
 void hit_button_clicked_cb1() {
 
 	int hit_player, hit_r, hit_c, hit_ship;
+	char* token;
 
 	hit_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_comboboxtext1);
 	hit_r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_r_comboboxtext1);
 	hit_c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_c_comboboxtext1);
+	hit_ship = gtk_combo_box_get_active((GtkComboBox *)hitplayer_with_comboboxtext1);
 
+	if(myIndice<2){
+		hit_player = hit_player + 2;
+	}
 
+	sprintf(sendBuf, "_HIT %s %s %d %d",players[hit_player],players[myIndice],10*hit_r+hit_c,hit_ship);
+	//send the co-ordinates to the server
+	send(clientSocket,sendBuf,100,0);
+	recv(clientSocket,sendBuf,100,0);
+
+	token = strtok(sendBuf,delimDash);
+	if(strcmp(token,"_Invalid")==0){
+		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Move");
+
+	}
+	if(strcmp(token,"_HIT")==0){
+		
+		gtk_widget_set_sensitive (hit_button1, FALSE);
+		int pos = atoi(strtok(NULL,delimDash));
+		turn = atoi(strtok(NULL,delimDash));
+		token = strtok(NULL,delimDash);
+		char msg[30];
+		strcpy(msg,token);
+		gtk_label_set_text((GtkLabel *)show_label1,msg);
+	}
+	if(strcmp(token,"_MISS")==0){
+		int pos = atoi(strtok(NULL,delimDash));
+		turn = atoi(strtok(NULL,delimDash));
+		token = strtok(NULL,delimDash);
+		char msg[30];
+		strcpy(msg,token);
+		gtk_label_set_text((GtkLabel *)show_label1,msg);
+		gtk_widget_set_sensitive (hit_button1, FALSE);
+	}
+	if(strcmp(token,"_WINS")==0){
+		token = strtok(NULL,delimDash);
+		gtk_label_set_text((GtkLabel *)show_label1,token);
+		gtk_widget_set_sensitive (hit_button1, FALSE);
+	}
+
+	////
+
+	//receive response from server
+
+	/*
+	gtk_widget_modify_bg(player4name_label1, GTK_STATE_NORMAL, &color);*/
 }
 
 // main_window2
@@ -1073,7 +1402,7 @@ int submit_button_clicked_cb2() {
 	int decoy1_r, decoy1_c, decoy2_r, decoy2_c; 
 
 	int player1_board[9][9];
-	int i, j;
+	int i, j, k;
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
@@ -1121,7 +1450,7 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 1;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Aircraft Carrier");
 				return -1;
 			}
 		}
@@ -1136,13 +1465,13 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 1;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Aircraft Carrier");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Aircraft Carrier");
 		return -1;
 	}
 
@@ -1156,7 +1485,7 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 2;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Destroyer");
 				return -1;
 			}
 		}
@@ -1171,13 +1500,13 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 2;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Destroyer");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Destroyer");
 		return -1;
 	}
 
@@ -1191,7 +1520,7 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 3;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Frigate");
 				return -1;
 			}
 		}
@@ -1206,13 +1535,13 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 3;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Frigate");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Frigate");
 		return -1;
 	}
 
@@ -1226,7 +1555,7 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 4;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Cruiser");
 				return -1;
 			}
 		}
@@ -1241,13 +1570,13 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 4;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Cruiser");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Cruiser");
 		return -1;
 	}
 
@@ -1261,7 +1590,7 @@ int submit_button_clicked_cb2() {
 				player1_board[i][j] = 5;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Submarine");
 				return -1;
 			}
 		}
@@ -1271,18 +1600,18 @@ int submit_button_clicked_cb2() {
 		i = submarine_sr;
 		j = submarine_sc;
 
-		while(i <= cruiser_er){
+		while(i <= submarine_er){
 			if(player1_board[i][j] == 0){
 				player1_board[i][j] = 5;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+				gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Submarine");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Submarine");
 		return -1;
 	}
 
@@ -1292,7 +1621,7 @@ int submit_button_clicked_cb2() {
 	if(player1_board[i][j] == 0){
 		player1_board[i][j] = 6;
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Decoy 1");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Decoy 1");
 		return -1;
 	}
 
@@ -1302,11 +1631,9 @@ int submit_button_clicked_cb2() {
 	if(player1_board[i][j] == 0){
 		player1_board[i][j] = 6;
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Decoy 2");
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Positions for Decoy 2");
 		return -1;
 	}
-
-	int board1[100];
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
@@ -1314,9 +1641,160 @@ int submit_button_clicked_cb2() {
 		}
 	}
 
-	//send the 1d array to the server
+	send(clientSocket,board1,100,0);
 
 	gtk_widget_set_sensitive (submit_button2, FALSE);
+
+	////
+
+	
+	//recieve the other three boards from the server (variables - board2, board3, board4)
+
+	//order the boards
+
+	/*for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player1_board[i][j] = board1[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player1_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell1_label2[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player2_board[i][j] = board2[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player2_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell2_label2[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player3_board[i][j] = board3[10*i + j]; 
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player3_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell3_label2[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player4_board[i][j] =board4[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player4_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell4_label2[i][j],"  X  ");
+					break;
+			}
+		}
+	}*/
 
 	return 0;
 
@@ -1324,12 +1802,47 @@ int submit_button_clicked_cb2() {
 
 // called when hit_button in main_window2 is clicked
 void hit_button_clicked_cb2() {
+	int hit_player, hit_r, hit_c, hit_ship;
 
+	hit_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_comboboxtext2);
+	hit_r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_r_comboboxtext2);
+	hit_c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_c_comboboxtext2);
+	hit_ship = gtk_combo_box_get_active((GtkComboBox *)hitplayer_with_comboboxtext2);
+
+	////
+
+	//send the co-ordinates to the server
+
+	gtk_widget_set_sensitive (hit_button2, FALSE);
+
+	////
+
+	//receive response from server
 }
 
 // called when hit_button in main_window2 is clicked
 void scan_button_clicked_cb2() {
 
+	int scan_player, scan_r, scan_c, scan_ship;
+
+	scan_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_comboboxtext2);
+	scan_r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_r_comboboxtext2);
+	scan_c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_c_comboboxtext2);
+	scan_ship = gtk_combo_box_get_active((GtkComboBox *)hitplayer_with_comboboxtext2);
+
+	if(scan_ship != 4){
+		gtk_label_set_text((GtkLabel *)show_label2,"Invalid Scan");
+	}
+
+	////
+
+	//send the co-ordinates to the server
+
+	gtk_widget_set_sensitive (scan_button2, FALSE);
+
+	////
+
+	//receive response from server
 }
 
 // main_window3
@@ -1345,7 +1858,7 @@ int submit_button_clicked_cb3() {
 	int decoy1_r, decoy1_c, decoy2_r, decoy2_c;
 
 	int player1_board[9][9];
-	int i, j;
+	int i, j, k;
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
@@ -1393,7 +1906,7 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 1;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Aircraft Carrier");
 				return -1;
 			}
 		}
@@ -1408,13 +1921,13 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 1;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Aircraft Carrier");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Aircraft Carrier");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Aircraft Carrier");
 		return -1;
 	}
 
@@ -1428,7 +1941,7 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 2;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Destroyer");
 				return -1;
 			}
 		}
@@ -1443,13 +1956,13 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 2;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Destroyer");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Destroyer");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Destroyer");
 		return -1;
 	}
 
@@ -1463,7 +1976,7 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 3;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Frigate");
 				return -1;
 			}
 		}
@@ -1478,13 +1991,13 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 3;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Frigate");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Frigate");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Frigate");
 		return -1;
 	}
 
@@ -1498,7 +2011,7 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 4;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Cruiser");
 				return -1;
 			}
 		}
@@ -1513,13 +2026,13 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 4;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Cruiser");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Cruiser");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Cruiser");
 		return -1;
 	}
 
@@ -1533,7 +2046,7 @@ int submit_button_clicked_cb3() {
 				player1_board[i][j] = 5;
 				j++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Submarine");
 				return -1;
 			}
 		}
@@ -1543,18 +2056,18 @@ int submit_button_clicked_cb3() {
 		i = submarine_sr;
 		j = submarine_sc;
 
-		while(i <= cruiser_er){
+		while(i <= submarine_er){
 			if(player1_board[i][j] == 0){
 				player1_board[i][j] = 5;
 				i++;
 			}else{
-				gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+				gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Submarine");
 				return -1;
 			}
 		}
 
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Submarine");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Submarine");
 		return -1;
 	}
 
@@ -1564,7 +2077,7 @@ int submit_button_clicked_cb3() {
 	if(player1_board[i][j] == 0){
 		player1_board[i][j] = 6;
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Decoy 1");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Decoy 1");
 		return -1;
 	}
 
@@ -1574,21 +2087,169 @@ int submit_button_clicked_cb3() {
 	if(player1_board[i][j] == 0){
 		player1_board[i][j] = 6;
 	}else{
-		gtk_label_set_text((GtkLabel *)show_label1,"Invalid Positions for Decoy 2");
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Positions for Decoy 2");
 		return -1;
 	}
-
-	int board1[100];
 
 	for(i = 0; i < 10; i++){
 		for(j = 0; j < 10; j++){
 			board1[10*i + j] = player1_board[i][j];
 		}
 	}
-
-	//send the 1d array to the server
+	
+	send(clientSocket,board1,100,0);
 
 	gtk_widget_set_sensitive (submit_button3, FALSE);
+
+	////
+
+	//recieve the other three boards from the server (variables - board2, board3, board4)
+
+	//order the boards
+
+	/*for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player1_board[i][j] = board1[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player1_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell1_label3[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player2_board[i][j] = board2[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player2_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell2_label3[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player3_board[i][j] = board3[10*i + j]; 
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player3_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell3_label3[i][j],"  X  ");
+					break;
+			}
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			player4_board[i][j] =board4[10*i + j];
+		}
+	}
+
+	for(i = 0; i < 10; i++){
+		for(j = 0; j < 10; j++){
+			k = player4_board[i][j];
+
+			switch(k){
+				case 0:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"      ");
+					break;
+				case 1:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  A  ");
+					break;
+				case 2:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  D  ");
+					break;
+				case 3:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  F  ");
+					break;
+				case 4:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  C  ");
+					break;
+				case 5:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  S  ");
+					break;
+				case 6:
+					gtk_label_set_text((GtkLabel *)cell4_label3[i][j],"  X  ");
+					break;
+			}
+		}
+	}*/
 
 	return 0;
 
@@ -1596,19 +2257,68 @@ int submit_button_clicked_cb3() {
 
 // called when hit_button in main_window3 is clicked
 void hit_button_clicked_cb3() {
+	int hit_player, hit_r, hit_c, hit_ship;
 
+	hit_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_comboboxtext3);
+	hit_r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_r_comboboxtext3);
+	hit_c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_c_comboboxtext3);
+	hit_ship = gtk_combo_box_get_active((GtkComboBox *)hitplayer_with_comboboxtext3);
+
+	////
+
+	//send the co-ordinates to the server
+
+	gtk_widget_set_sensitive (hit_button3, FALSE);
+
+	////
+
+	//receive response from server
 }
 
 // called when hit_button in main_window3 is clicked
 void scan_button_clicked_cb3() {
+	int scan_player, scan_r, scan_c, scan_ship;
 
+	scan_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_comboboxtext3);
+	scan_r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_r_comboboxtext3);
+	scan_c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_c_comboboxtext3);
+	scan_ship = gtk_combo_box_get_active((GtkComboBox *)hitplayer_with_comboboxtext3);
+
+	if(scan_ship != 4){
+		gtk_label_set_text((GtkLabel *)show_label3,"Invalid Scan");
+	}
+
+	////
+
+	//send the co-ordinates to the server
+
+	gtk_widget_set_sensitive (scan_button3, FALSE);
+
+	////
+
+	//receive response from server
 }
 
 // called when hit_button in main_window3 is clicked
 void mine_hit_button_clicked_cb3() {
+	int mine_player, mine_1r, mine_1c, mine_2r, mine_2c;
 
+	mine_player = gtk_combo_box_get_active((GtkComboBox *)hitplayer_mine_comboboxtext3);
+	mine_1r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_mine_1r_comboboxtext3);
+	mine_1c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_mine_1c_comboboxtext3);
+	mine_2r = gtk_combo_box_get_active((GtkComboBox *)hitplayer_mine_2r_comboboxtext3);
+	mine_2c = gtk_combo_box_get_active((GtkComboBox *)hitplayer_mine_2c_comboboxtext3);
+
+	////
+
+	//send the co-ordinates to the server
+
+	gtk_widget_set_sensitive (mine_hit_button3, FALSE);
+
+	////
+
+	//receive response from server
 }
-
 
 
 
