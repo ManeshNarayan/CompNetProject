@@ -1381,7 +1381,18 @@ void hit_button_clicked_cb1() {
 		gtk_widget_set_sensitive (hit_button1, FALSE);
 	}
 
-	////
+	recv(clientSocket,sendBuf,100,0);
+
+	recv(clientSocket,sendBuf,100,0);
+
+	recv(clientSocket,sendBuf,100,0);
+	token = strtok(NULL,delimDash);
+	int pos = atoi(strtok(NULL,delimDash));
+		turn = atoi(strtok(NULL,delimDash));
+
+	if(turn == myIndice){
+		gtk_widget_set_sensitive (hit_button1, TRUE);
+	}
 
 	//receive response from server
 
